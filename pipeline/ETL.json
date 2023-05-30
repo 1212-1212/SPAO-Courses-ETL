@@ -1,0 +1,271 @@
+{
+	"name": "ETL",
+	"properties": {
+		"activities": [
+			{
+				"name": "Load Dimensional Table User SCD Type 2",
+				"type": "ExecuteDataFlow",
+				"dependsOn": [
+					{
+						"activity": "User ETL",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"dataflow": {
+						"referenceName": "SCDType2",
+						"type": "DataFlowReference",
+						"parameters": {
+							"PrimaryKey": "'ID'",
+							"Columns": "'Name'"
+						},
+						"datasetParameters": {
+							"ExternalSource": {
+								"TableName": "User"
+							},
+							"DimensionalTableInput": {
+								"TableName": "DimUser"
+							},
+							"DimensionalTableOutput": {
+								"TableName": "DimUser"
+							}
+						}
+					},
+					"compute": {
+						"coreCount": 8,
+						"computeType": "General"
+					},
+					"traceLevel": "Fine"
+				}
+			},
+			{
+				"name": "User ETL",
+				"type": "ExecuteDataFlow",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"dataflow": {
+						"referenceName": "UserETL",
+						"type": "DataFlowReference",
+						"datasetParameters": {
+							"InputProfilesCSV": {
+								"FileName": "profiles.csv"
+							},
+							"OutputUserTable": {
+								"TableName": "User"
+							}
+						}
+					},
+					"compute": {
+						"coreCount": 8,
+						"computeType": "General"
+					},
+					"traceLevel": "Fine"
+				}
+			},
+			{
+				"name": "Course ETL",
+				"type": "ExecuteDataFlow",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"dataflow": {
+						"referenceName": "CourseETL",
+						"type": "DataFlowReference",
+						"datasetParameters": {
+							"InputProfilesCSV": {
+								"FileName": "profiles.csv"
+							},
+							"OutputCourseTable": {
+								"TableName": "Course"
+							}
+						}
+					},
+					"compute": {
+						"coreCount": 8,
+						"computeType": "General"
+					},
+					"traceLevel": "Fine"
+				}
+			},
+			{
+				"name": "Load Dimensional Table Course SCD Type 1",
+				"type": "ExecuteDataFlow",
+				"dependsOn": [
+					{
+						"activity": "Course ETL",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"dataflow": {
+						"referenceName": "SCDType1",
+						"type": "DataFlowReference",
+						"parameters": {
+							"PrimaryKey": "'CourseRawString'",
+							"Columns": "'CourseName,CourseYear,CourseType'"
+						},
+						"datasetParameters": {
+							"ExternalSource": {
+								"TableName": "Course"
+							},
+							"DimensionalTableInput": {
+								"TableName": "DimCourse"
+							},
+							"DimensionalTableOutputInsert": {
+								"TableName": "DimCourse"
+							},
+							"DimensionalTableOutputUpdate": {
+								"TableName": "DimCourse"
+							}
+						}
+					},
+					"compute": {
+						"coreCount": 8,
+						"computeType": "General"
+					},
+					"traceLevel": "Fine"
+				}
+			},
+			{
+				"name": "Load Fact Table",
+				"type": "ExecuteDataFlow",
+				"dependsOn": [
+					{
+						"activity": "Load Dimensional Table Course SCD Type 1",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Load Dimensional Table User SCD Type 2",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Course Year ETL",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"dataflow": {
+						"referenceName": "FactCourseUserETL",
+						"type": "DataFlowReference",
+						"datasetParameters": {
+							"ExternalSource": {
+								"FileName": "profiles.csv"
+							},
+							"DimCourseTable": {
+								"TableName": "DimCourse"
+							},
+							"DimCourseYearTable": {
+								"TableName": "DimCourseYear"
+							},
+							"FactCoursePopularity": {
+								"TableName": "FactCoursePopularity"
+							},
+							"FactTableInsert": {
+								"TableName": "FactCoursePopularity"
+							},
+							"FactTableUpdate": {
+								"TableName": "FactCoursePopularity"
+							}
+						}
+					},
+					"compute": {
+						"coreCount": 8,
+						"computeType": "General"
+					},
+					"traceLevel": "Fine"
+				}
+			},
+			{
+				"name": "Course Year ETL",
+				"type": "ExecuteDataFlow",
+				"dependsOn": [
+					{
+						"activity": "Course ETL",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"dataflow": {
+						"referenceName": "CourseYearETL",
+						"type": "DataFlowReference",
+						"datasetParameters": {
+							"ExternalSource": {
+								"TableName": "Course"
+							},
+							"DimCourseYear": {
+								"TableName": "DimCourseYear"
+							}
+						}
+					},
+					"compute": {
+						"coreCount": 8,
+						"computeType": "General"
+					},
+					"traceLevel": "Fine"
+				}
+			}
+		],
+		"annotations": [],
+		"lastPublishTime": "2023-05-25T17:39:39Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

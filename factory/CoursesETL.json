@@ -1,0 +1,9 @@
+{
+	"name": "CoursesETL",
+	"location": "northeurope",
+	"identity": {
+		"type": "SystemAssigned",
+		"principalId": "8fa5db48-c9f5-41b6-b9c7-c43600c893c0",
+		"tenantId": "f0cac47b-e2b3-4e1b-a52f-487d2d996288"
+	}
+}
