@@ -1,0 +1,47 @@
+{
+	"name": "DistinctItem",
+	"properties": {
+		"folder": {
+			"name": "Flowlets"
+		},
+		"type": "Flowlet",
+		"typeProperties": {
+			"sources": [],
+			"sinks": [],
+			"transformations": [
+				{
+					"name": "window"
+				},
+				{
+					"name": "filter"
+				},
+				{
+					"name": "select"
+				},
+				{
+					"name": "input"
+				},
+				{
+					"name": "output"
+				}
+			],
+			"scriptLines": [
+				"input(output(",
+				"          Item as string",
+				"     ),",
+				"     order: 0,",
+				"     allowSchemaDrift: true) ~> input",
+				"input window(over(Item),",
+				"     asc(Item, true),",
+				"     Rn = rowNumber()) ~> window",
+				"window filter(Rn == 1) ~> filter",
+				"filter select(mapColumn(",
+				"          Item",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> select",
+				"select output() ~> output"
+			]
+		}
+	}
+}

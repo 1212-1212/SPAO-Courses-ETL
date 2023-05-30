@@ -1,0 +1,151 @@
+{
+	"name": "SCDType2",
+	"properties": {
+		"folder": {
+			"name": "SCD"
+		},
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "InputSQL",
+						"type": "DatasetReference"
+					},
+					"name": "ExternalSource"
+				},
+				{
+					"dataset": {
+						"referenceName": "InputSQL",
+						"type": "DatasetReference"
+					},
+					"name": "DimensionalTableInput"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "OutputSQL",
+						"type": "DatasetReference"
+					},
+					"name": "DimensionalTableOutput"
+				}
+			],
+			"transformations": [
+				{
+					"name": "AddSCDType1MetaColumnsNew"
+				},
+				{
+					"name": "FilterOutInactiveColumns"
+				},
+				{
+					"name": "AddSCDType1MetaColumnsExisting"
+				},
+				{
+					"name": "CheckIfRecordDoesNotExistInTable"
+				},
+				{
+					"name": "AddSCDType2MetaColumns"
+				},
+				{
+					"name": "MarkAsInsert"
+				},
+				{
+					"name": "CombineNewAndModified"
+				},
+				{
+					"name": "CheckIfRecordExists"
+				},
+				{
+					"name": "UpdateMetaColumns"
+				},
+				{
+					"name": "MarkAsUpdate"
+				},
+				{
+					"name": "SelectUpdatedMetaColumns"
+				},
+				{
+					"name": "SortByIdAsc"
+				}
+			],
+			"scriptLines": [
+				"parameters{",
+				"     PrimaryKey as string,",
+				"     Columns as string",
+				"}",
+				"source(output(",
+				"          ID as integer,",
+				"          Name as string,",
+				"          Mail as string,",
+				"          Description as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> ExternalSource",
+				"source(output(",
+				"          Skey as integer,",
+				"          ID as integer,",
+				"          Name as string,",
+				"          Mail as string,",
+				"          Description as string,",
+				"          SCDKeysHash as string,",
+				"          SCDColumnsHash as string,",
+				"          SCDActiveStartTime as timestamp,",
+				"          SCDActiveEndTime as timestamp,",
+				"          SCDIsCurrent as boolean",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> DimensionalTableInput",
+				"ExternalSource derive(SCDKeysHash = sha2(256, toString(byName($PrimaryKey))),",
+				"          SCDColumnsHash = sha2(256, toString(byNames(split($Columns, ','))))) ~> AddSCDType1MetaColumnsNew",
+				"DimensionalTableInput filter(SCDIsCurrent == true()) ~> FilterOutInactiveColumns",
+				"FilterOutInactiveColumns derive(SCDKeysHash = sha2(256, toString(byName($PrimaryKey))),",
+				"          SCDColumnsHash = sha2(256, toString(byNames(split($Columns, ','))))) ~> AddSCDType1MetaColumnsExisting",
+				"AddSCDType1MetaColumnsNew, AddSCDType1MetaColumnsExisting exists(AddSCDType1MetaColumnsNew@SCDKeysHash == AddSCDType1MetaColumnsExisting@SCDKeysHash",
+				"     && AddSCDType1MetaColumnsNew@SCDColumnsHash == AddSCDType1MetaColumnsExisting@SCDColumnsHash,",
+				"     negate:true,",
+				"     broadcast: 'auto')~> CheckIfRecordDoesNotExistInTable",
+				"CheckIfRecordDoesNotExistInTable derive(SCDIsCurrent = 1,",
+				"          SCDActiveStartTime = currentUTC(),",
+				"          SCDActiveEndTime = toTimestamp('9999-12-31', 'yyyy-mm-dd')) ~> AddSCDType2MetaColumns",
+				"AddSCDType2MetaColumns alterRow(insertIf(true())) ~> MarkAsInsert",
+				"MarkAsInsert, SelectUpdatedMetaColumns union(byName: true)~> CombineNewAndModified",
+				"AddSCDType1MetaColumnsExisting, AddSCDType1MetaColumnsNew exists(AddSCDType1MetaColumnsExisting@SCDKeysHash == AddSCDType1MetaColumnsNew@SCDKeysHash &&",
+				"AddSCDType1MetaColumnsExisting@SCDColumnsHash != AddSCDType1MetaColumnsNew@SCDColumnsHash,",
+				"     negate:false,",
+				"     broadcast: 'right')~> CheckIfRecordExists",
+				"CheckIfRecordExists derive(SCDIsCurrent = 0,",
+				"          SCDActiveEndTime = currentUTC()) ~> UpdateMetaColumns",
+				"UpdateMetaColumns alterRow(updateIf(true())) ~> MarkAsUpdate",
+				"MarkAsUpdate select(mapColumn(",
+				"          ID,",
+				"          Name,",
+				"          Mail,",
+				"          Description,",
+				"          SCDKeysHash,",
+				"          SCDColumnsHash,",
+				"          SCDActiveStartTime,",
+				"          SCDActiveEndTime,",
+				"          SCDIsCurrent",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> SelectUpdatedMetaColumns",
+				"CombineNewAndModified sort(asc(ID, true)) ~> SortByIdAsc",
+				"SortByIdAsc sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError') ~> DimensionalTableOutput"
+			]
+		}
+	}
+}

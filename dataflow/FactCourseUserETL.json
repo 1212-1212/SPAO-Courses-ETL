@@ -1,0 +1,288 @@
+{
+	"name": "FactCourseUserETL",
+	"properties": {
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "InputBLOB",
+						"type": "DatasetReference"
+					},
+					"name": "ExternalSource"
+				},
+				{
+					"dataset": {
+						"referenceName": "InputSQL",
+						"type": "DatasetReference"
+					},
+					"name": "DimCourseTable"
+				},
+				{
+					"dataset": {
+						"referenceName": "InputSQL",
+						"type": "DatasetReference"
+					},
+					"name": "DimCourseYearTable"
+				},
+				{
+					"dataset": {
+						"referenceName": "InputSQL",
+						"type": "DatasetReference"
+					},
+					"name": "FactCoursePopularity"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "OutputSQL",
+						"type": "DatasetReference"
+					},
+					"name": "FactTableInsert"
+				},
+				{
+					"dataset": {
+						"referenceName": "OutputSQL",
+						"type": "DatasetReference"
+					},
+					"name": "FactTableUpdate"
+				}
+			],
+			"transformations": [
+				{
+					"name": "ExplodeCoursesWithUserId",
+					"flowlet": {
+						"referenceName": "ExplodeItemsWithUserId",
+						"type": "DataFlowReference"
+					}
+				},
+				{
+					"name": "FilterIrrelevantCourses",
+					"flowlet": {
+						"referenceName": "FilterIrrelevantCourses",
+						"type": "DataFlowReference"
+					}
+				},
+				{
+					"name": "DistinctCourses",
+					"flowlet": {
+						"referenceName": "DistinctItem",
+						"type": "DataFlowReference"
+					}
+				},
+				{
+					"name": "SelectUserIdCourses"
+				},
+				{
+					"name": "JoinWithCourses"
+				},
+				{
+					"name": "RemoveCourseColumn"
+				},
+				{
+					"name": "TotalEnrollements"
+				},
+				{
+					"name": "LeftJoinWithDimCourse"
+				},
+				{
+					"name": "LeftJoinWithDimCourseYear"
+				},
+				{
+					"name": "LeftJoinWithFact"
+				},
+				{
+					"name": "FilterOutExistingRecords"
+				},
+				{
+					"name": "SelectRelevantColumnsInsert"
+				},
+				{
+					"name": "JoinWithDimCourse"
+				},
+				{
+					"name": "JoinWithDimCourseYear"
+				},
+				{
+					"name": "JoinWithFact"
+				},
+				{
+					"name": "MarkAsUpdate"
+				},
+				{
+					"name": "FilterModifiedEnrollemnts"
+				},
+				{
+					"name": "SelectRelevantColumnsUpdate"
+				},
+				{
+					"name": "MarkAsInsert"
+				},
+				{
+					"name": "FilterNullSkey"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          ID as long,",
+				"          Name as string,",
+				"          Mail as string,",
+				"          Courses as string,",
+				"          {Last Access} as string,",
+				"          Description as string,",
+				"          Country as string,",
+				"          City as string,",
+				"          Interests as string,",
+				"          Web as string,",
+				"          Skype as string,",
+				"          MSN as string,",
+				"          Yahoo as string,",
+				"          ICQ as string,",
+				"          AIM as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     ignoreNoFilesFound: false) ~> ExternalSource",
+				"source(output(",
+				"          Skey as integer,",
+				"          CourseRawString as string,",
+				"          CourseName as string,",
+				"          CourseYear as integer,",
+				"          CourseType as string,",
+				"          SCDKeysHash as string,",
+				"          SCDColumnsHash as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> DimCourseTable",
+				"source(output(",
+				"          Skey as integer",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> DimCourseYearTable",
+				"source(output(",
+				"          DimCourseSkey as integer,",
+				"          DimCourseYearSkey as integer,",
+				"          TotalEnrollments as integer",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> FactCoursePopularity",
+				"SelectUserIdCourses compose(mapColumn(",
+				"          Items = Courses,",
+				"          UserID = ID",
+				"     ),",
+				"     composition: 'ExplodeItemsWithUserId') ~> ExplodeCoursesWithUserId@(ItemOutputStream)",
+				"ExplodeCoursesWithUserId@ItemOutputStream compose(mapColumn(",
+				"          Course = Item",
+				"     ),",
+				"     composition: 'FilterIrrelevantCourses') ~> FilterIrrelevantCourses@(Output)",
+				"FilterIrrelevantCourses@Output compose(mapColumn(",
+				"          Item = Course",
+				"     ),",
+				"     composition: 'DistinctItem') ~> DistinctCourses@(output)",
+				"ExternalSource select(mapColumn(",
+				"          ID,",
+				"          Courses",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> SelectUserIdCourses",
+				"ExplodeCoursesWithUserId@ItemOutputStream, DistinctCourses@output join(ExplodeCoursesWithUserId@ItemOutputStream@Item == DistinctCourses@output@Item,",
+				"     joinType:'inner',",
+				"     matchType:'exact',",
+				"     ignoreSpaces: false,",
+				"     broadcast: 'auto')~> JoinWithCourses",
+				"JoinWithCourses select(mapColumn(",
+				"          UserID,",
+				"          Course = ExplodeCoursesWithUserId@ItemOutputStream@Item",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> RemoveCourseColumn",
+				"RemoveCourseColumn aggregate(groupBy(Course),",
+				"     TotalEnrollments = count(UserID)) ~> TotalEnrollements",
+				"TotalEnrollements, DimCourseTable join(Course == CourseRawString,",
+				"     joinType:'left',",
+				"     matchType:'exact',",
+				"     ignoreSpaces: false,",
+				"     broadcast: 'auto')~> LeftJoinWithDimCourse",
+				"LeftJoinWithDimCourse, DimCourseYearTable join(CourseYear == DimCourseYearTable@Skey,",
+				"     joinType:'left',",
+				"     matchType:'exact',",
+				"     ignoreSpaces: false,",
+				"     broadcast: 'auto')~> LeftJoinWithDimCourseYear",
+				"LeftJoinWithDimCourseYear, FactCoursePopularity join(DimCourseTable@Skey == DimCourseSkey",
+				"     && DimCourseYearTable@Skey == DimCourseYearSkey,",
+				"     joinType:'left',",
+				"     matchType:'exact',",
+				"     ignoreSpaces: false,",
+				"     broadcast: 'auto')~> LeftJoinWithFact",
+				"LeftJoinWithFact filter(isNull(DimCourseSkey) || isNull(DimCourseYearSkey)) ~> FilterOutExistingRecords",
+				"FilterOutExistingRecords select(mapColumn(",
+				"          DimCourseSkey = DimCourseTable@Skey,",
+				"          DimCourseYearSkey = DimCourseYearTable@Skey,",
+				"          TotalEnrollments = TotalEnrollements@TotalEnrollments",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> SelectRelevantColumnsInsert",
+				"TotalEnrollements, DimCourseTable join(Course == CourseRawString,",
+				"     joinType:'inner',",
+				"     matchType:'exact',",
+				"     ignoreSpaces: false,",
+				"     broadcast: 'auto')~> JoinWithDimCourse",
+				"JoinWithDimCourse, DimCourseYearTable join(CourseYear == DimCourseYearTable@Skey,",
+				"     joinType:'inner',",
+				"     matchType:'exact',",
+				"     ignoreSpaces: false,",
+				"     broadcast: 'auto')~> JoinWithDimCourseYear",
+				"JoinWithDimCourseYear, FactCoursePopularity join(DimCourseTable@Skey == DimCourseSkey",
+				"     && DimCourseYearTable@Skey == DimCourseSkey,",
+				"     joinType:'inner',",
+				"     matchType:'exact',",
+				"     ignoreSpaces: false,",
+				"     broadcast: 'auto')~> JoinWithFact",
+				"SelectRelevantColumnsUpdate alterRow(updateIf(true())) ~> MarkAsUpdate",
+				"JoinWithFact filter(TotalEnrollements@TotalEnrollments != FactCoursePopularity@TotalEnrollments) ~> FilterModifiedEnrollemnts",
+				"FilterModifiedEnrollemnts select(mapColumn(",
+				"          DimCourseSkey,",
+				"          DimCourseYearSkey,",
+				"          TotalEnrollments = FactCoursePopularity@TotalEnrollments",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> SelectRelevantColumnsUpdate",
+				"FilterNullSkey alterRow(insertIf(true())) ~> MarkAsInsert",
+				"SelectRelevantColumnsInsert filter(isNull(DimCourseSkey) || isNull(DimCourseYearSkey)) ~> FilterNullSkey",
+				"MarkAsInsert sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError') ~> FactTableInsert",
+				"MarkAsUpdate sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     deletable:false,",
+				"     insertable:false,",
+				"     updateable:true,",
+				"     upsertable:false,",
+				"     keys:['DimCourseYearSkey','DimCourseSkey'],",
+				"     format: 'table',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError',",
+				"     mapColumn(",
+				"          DimCourseSkey,",
+				"          DimCourseYearSkey,",
+				"          TotalEnrollments",
+				"     )) ~> FactTableUpdate"
+			]
+		}
+	}
+}

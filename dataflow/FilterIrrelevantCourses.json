@@ -1,0 +1,52 @@
+{
+	"name": "FilterIrrelevantCourses",
+	"properties": {
+		"folder": {
+			"name": "Flowlets"
+		},
+		"type": "Flowlet",
+		"typeProperties": {
+			"sources": [],
+			"sinks": [],
+			"transformations": [
+				{
+					"name": "ExtractYear"
+				},
+				{
+					"name": "FilterOutNullAndOldCourses"
+				},
+				{
+					"name": "CastYearToInt"
+				},
+				{
+					"name": "SelectCourse"
+				},
+				{
+					"name": "Input"
+				},
+				{
+					"name": "Output"
+				}
+			],
+			"scriptLines": [
+				"input(output(",
+				"          Course as string",
+				"     ),",
+				"     order: 0,",
+				"     allowSchemaDrift: true) ~> Input",
+				"Input derive(CourseYear = iif(toInteger(regexSplit(regexExtract(Course, `\\d{2,4}[-/]\\d{2,4}`,0), `[-/]`)[2]) < 2000, toInteger(regexSplit(regexExtract(Course, `\\d{2,4}[-/]\\d{2,4}`,0), `[-/]`)[2]) + 2000, toInteger(regexSplit(regexExtract(Course, `\\d{2,4}[-/]\\d{2,4}`,0), `[-/]`)[2]))) ~> ExtractYear",
+				"CastYearToInt filter(!isNull(CourseYear) && CourseYear > 2018) ~> FilterOutNullAndOldCourses",
+				"ExtractYear cast(output(",
+				"          CourseYear as integer",
+				"     ),",
+				"     errors: true) ~> CastYearToInt",
+				"FilterOutNullAndOldCourses select(mapColumn(",
+				"          Course",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> SelectCourse",
+				"SelectCourse output() ~> Output"
+			]
+		}
+	}
+}

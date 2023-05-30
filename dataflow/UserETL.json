@@ -1,0 +1,82 @@
+{
+	"name": "UserETL",
+	"properties": {
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "InputBLOB",
+						"type": "DatasetReference"
+					},
+					"name": "InputProfilesCSV"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "OutputSQL",
+						"type": "DatasetReference"
+					},
+					"name": "OutputUserTable"
+				}
+			],
+			"transformations": [
+				{
+					"name": "SelectUserColumns"
+				},
+				{
+					"name": "SortByUserIdAsc"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          ID as integer,",
+				"          Name as string,",
+				"          Mail as string,",
+				"          Courses as string,",
+				"          {Last Access} as string,",
+				"          Description as string,",
+				"          Country as string,",
+				"          City as string,",
+				"          Interests as string,",
+				"          Web as string,",
+				"          Skype as string,",
+				"          MSN as string,",
+				"          Yahoo as string,",
+				"          ICQ as string,",
+				"          AIM as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     ignoreNoFilesFound: false,",
+				"     multiLineRow: true) ~> InputProfilesCSV",
+				"InputProfilesCSV select(mapColumn(",
+				"          UserID = ID,",
+				"          FullName = Name,",
+				"          Email = Mail,",
+				"          Description",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> SelectUserColumns",
+				"SelectUserColumns sort(asc(UserID, true)) ~> SortByUserIdAsc",
+				"SortByUserIdAsc sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError',",
+				"     mapColumn(",
+				"          ID = UserID,",
+				"          Name = FullName,",
+				"          Mail = Email,",
+				"          Description",
+				"     )) ~> OutputUserTable"
+			]
+		}
+	}
+}

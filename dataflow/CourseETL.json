@@ -1,0 +1,199 @@
+{
+	"name": "CourseETL",
+	"properties": {
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "InputBLOB",
+						"type": "DatasetReference"
+					},
+					"name": "InputProfilesCSV"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "OutputSQL",
+						"type": "DatasetReference"
+					},
+					"name": "OutputCourseTable"
+				}
+			],
+			"transformations": [
+				{
+					"name": "ExplodeCourses",
+					"flowlet": {
+						"referenceName": "ExplodeItems",
+						"type": "DataFlowReference"
+					}
+				},
+				{
+					"name": "FilterIrrelevantCourses",
+					"flowlet": {
+						"referenceName": "FilterIrrelevantCourses",
+						"type": "DataFlowReference"
+					}
+				},
+				{
+					"name": "SelectCourses"
+				},
+				{
+					"name": "ExtractCourseRawString"
+				},
+				{
+					"name": "RenameColumn"
+				},
+				{
+					"name": "SplitByCourseType2"
+				},
+				{
+					"name": "HandleMissingCourseTypeInSomeYears"
+				},
+				{
+					"name": "UnionKnownAndUnknown"
+				},
+				{
+					"name": "RenameColumns"
+				},
+				{
+					"name": "SelectKnownType"
+				},
+				{
+					"name": "WindowOverCourse"
+				},
+				{
+					"name": "RemoveDuplicates"
+				},
+				{
+					"name": "SplitByCourseType1"
+				},
+				{
+					"name": "HandleAndrejaNaumovskiCourses"
+				},
+				{
+					"name": "UnionWithKnown"
+				},
+				{
+					"name": "ChangeCourseName"
+				},
+				{
+					"name": "HandleSE2019"
+				},
+				{
+					"name": "UnionWithOtherCourses"
+				},
+				{
+					"name": "RemoveRn"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          ID as string,",
+				"          Name as string,",
+				"          Mail as string,",
+				"          Courses as string,",
+				"          {Last Access} as string,",
+				"          Description as string,",
+				"          Country as string,",
+				"          City as string,",
+				"          Interests as string,",
+				"          Web as string,",
+				"          Skype as string,",
+				"          MSN as string,",
+				"          Yahoo as string,",
+				"          ICQ as string,",
+				"          AIM as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     ignoreNoFilesFound: false) ~> InputProfilesCSV",
+				"SelectCourses compose(mapColumn(",
+				"          Items = Courses",
+				"     ),",
+				"     composition: 'ExplodeItems') ~> ExplodeCourses@(ItemOutputStream)",
+				"RenameColumn compose(mapColumn(",
+				"          Course",
+				"     ),",
+				"     composition: 'FilterIrrelevantCourses') ~> FilterIrrelevantCourses@(Output)",
+				"InputProfilesCSV select(mapColumn(",
+				"          Courses",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> SelectCourses",
+				"FilterIrrelevantCourses@Output derive(CourseName = /* iif(Course == 'EMT-21/22', 'Електронска и мобилна трговија', iif(Course == 'KA-21/22', 'Компјутерски архитектури',reduce(slice(split(Course, '-'), 1, size(split(Course, '-'))-1), '', #acc + ' ' + #item, #result))) */\r",
+				" iif(Course == 'EMT-21/22', 'Електронска и мобилна трговија', iif(Course == 'КА-21/22', 'Компјутерски архитектури',rtrim(regexSplit(Course, `\\d{4}[-/]\\d{2,4}`)[1], ' -'))),",
+				"          CourseType = iif(in(split(reverse(Course), '/'), 'Z') || in(split(reverse(Course), '/'), 'W') || in(split(reverse(Course), '/'), 'Z(W)'), 'Winter', iif(in(split(reverse(Course), '/'), 'L') || in(split(reverse(Course), '/'), 'S'), 'Summer', iif(Course == 'EMT-21/22' || Course == 'КА-21/22', 'Summer', 'Unknown'))),",
+				"          CourseYear = iif(toInteger(regexSplit(regexExtract(Course, `\\d{2,4}[-/]\\d{2,4}`,0), `[-/]`)[2]) < 2000, toInteger(regexSplit(regexExtract(Course, `\\d{2,4}[-/]\\d{2,4}`,0), `[-/]`)[2]) + 2000, toInteger(regexSplit(regexExtract(Course, `\\d{2,4}[-/]\\d{2,4}`,0), `[-/]`)[2]))) ~> ExtractCourseRawString",
+				"ExplodeCourses@ItemOutputStream select(mapColumn(",
+				"          Course = Item",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> RenameColumn",
+				"UnionWithKnown split(CourseType == 'Unknown',",
+				"     disjoint: false) ~> SplitByCourseType2@(Unknown2, Known2)",
+				"SplitByCourseType2@Unknown2, RenameColumns join(CourseName == CourseNameKnown,",
+				"     joinType:'inner',",
+				"     matchType:'exact',",
+				"     ignoreSpaces: false,",
+				"     broadcast: 'both')~> HandleMissingCourseTypeInSomeYears",
+				"RemoveRn, SplitByCourseType2@Known2 union(byName: true)~> UnionKnownAndUnknown",
+				"SplitByCourseType2@Known2 select(mapColumn(",
+				"          CourseKnown = Course,",
+				"          CourseYearKnown = CourseYear,",
+				"          CourseNameKnown = CourseName,",
+				"          CourseTypeKnown = CourseType",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> RenameColumns",
+				"HandleMissingCourseTypeInSomeYears select(mapColumn(",
+				"          Course,",
+				"          CourseYear,",
+				"          CourseName,",
+				"          CourseType = CourseTypeKnown",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> SelectKnownType",
+				"SelectKnownType window(over(Course),",
+				"     asc(Course, true),",
+				"     Rn = rowNumber()) ~> WindowOverCourse",
+				"WindowOverCourse filter(Rn == 1) ~> RemoveDuplicates",
+				"ExtractCourseRawString split(CourseType == 'Unknown',",
+				"     disjoint: false) ~> SplitByCourseType1@(Unknown1, Known1)",
+				"SplitByCourseType1@Unknown1 derive(CourseType = /* iif(CourseName == 'Компјутерски компоненти' || CourseName == 'Географски информациски системи' || CourseName == 'Вовед во екоинформатиката' || CourseName == 'Компјутерски подржано производство', 'Summer', 'Unknown') */\r",
+				"iif(in(['Компјутерски компоненти', 'Географски информациски системи', 'Вовед во екоинформатиката', 'Компјутерски подржано производство'], CourseName), 'Summer', 'Unknown')) ~> HandleAndrejaNaumovskiCourses",
+				"HandleAndrejaNaumovskiCourses, SplitByCourseType1@Known1 union(byName: true)~> UnionWithKnown",
+				"HandleSE2019@SE2019 derive(CourseName = iif(ltrim(split(Course, '-')[3], ' ') == 'КЗ', 'Софтверско инженерство - КЗ', 'Софтверско инженерство - ДЃ,ЃМ,КТ')) ~> ChangeCourseName",
+				"UnionKnownAndUnknown split(CourseName == 'Софтверско инженерство' && CourseYear == 2019,",
+				"     disjoint: false) ~> HandleSE2019@(SE2019, NotSE2019)",
+				"ChangeCourseName, HandleSE2019@NotSE2019 union(byName: true)~> UnionWithOtherCourses",
+				"RemoveDuplicates select(mapColumn(",
+				"          Course,",
+				"          CourseYear,",
+				"          CourseName,",
+				"          CourseType",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> RemoveRn",
+				"UnionWithOtherCourses sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     saveOrder: 1,",
+				"     errorHandlingOption: 'stopOnFirstError',",
+				"     mapColumn(",
+				"          CourseRawString = Course,",
+				"          CourseYear,",
+				"          CourseName,",
+				"          CourseType",
+				"     )) ~> OutputCourseTable"
+			]
+		}
+	}
+}

@@ -1,0 +1,125 @@
+{
+	"name": "SCDType1",
+	"properties": {
+		"folder": {
+			"name": "SCD"
+		},
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "InputSQL",
+						"type": "DatasetReference"
+					},
+					"name": "ExternalSource"
+				},
+				{
+					"dataset": {
+						"referenceName": "InputSQL",
+						"type": "DatasetReference"
+					},
+					"name": "DimensionalTableInput"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "OutputSQL",
+						"type": "DatasetReference"
+					},
+					"name": "DimensionalTableOutputInsert"
+				},
+				{
+					"dataset": {
+						"referenceName": "OutputSQL",
+						"type": "DatasetReference"
+					},
+					"name": "DimensionalTableOutputUpdate"
+				}
+			],
+			"transformations": [
+				{
+					"name": "AddSCDType1MetaColumnsNew"
+				},
+				{
+					"name": "CheckIfRecordDoesNotExist"
+				},
+				{
+					"name": "AddSCDType1MetaColumnsExisting"
+				},
+				{
+					"name": "MarkAsInsert"
+				},
+				{
+					"name": "CheckIfRecordExists"
+				},
+				{
+					"name": "MarkAsUpdate"
+				}
+			],
+			"scriptLines": [
+				"parameters{",
+				"     PrimaryKey as string,",
+				"     Columns as string",
+				"}",
+				"source(output(",
+				"          CourseRawString as string,",
+				"          CourseName as string,",
+				"          CourseYear as integer,",
+				"          CourseType as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> ExternalSource",
+				"source(output(",
+				"          Skey as long,",
+				"          CourseRawString as string,",
+				"          CourseName as string,",
+				"          CourseYear as integer,",
+				"          CourseType as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> DimensionalTableInput",
+				"ExternalSource derive(SCDKeysHash = sha2(256, toString(byName($PrimaryKey))),",
+				"          SCDColumnsHash = sha2(256, toString(byNames(split($Columns, ','))))) ~> AddSCDType1MetaColumnsNew",
+				"AddSCDType1MetaColumnsNew, AddSCDType1MetaColumnsExisting exists(AddSCDType1MetaColumnsNew@SCDKeysHash == AddSCDType1MetaColumnsExisting@SCDKeysHash,",
+				"     negate:true,",
+				"     broadcast: 'auto')~> CheckIfRecordDoesNotExist",
+				"DimensionalTableInput derive(SCDKeysHash = sha2(256, toString(byName($PrimaryKey))),",
+				"          SCDColumnsHash = sha2(256, toString(byNames(split($Columns, ','))))) ~> AddSCDType1MetaColumnsExisting",
+				"CheckIfRecordDoesNotExist alterRow(insertIf(true())) ~> MarkAsInsert",
+				"AddSCDType1MetaColumnsExisting, AddSCDType1MetaColumnsNew exists(AddSCDType1MetaColumnsNew@SCDKeysHash == AddSCDType1MetaColumnsExisting@SCDKeysHash",
+				"     && AddSCDType1MetaColumnsNew@SCDColumnsHash != AddSCDType1MetaColumnsExisting@SCDColumnsHash,",
+				"     negate:false,",
+				"     broadcast: 'right')~> CheckIfRecordExists",
+				"CheckIfRecordExists alterRow(updateIf(true())) ~> MarkAsUpdate",
+				"MarkAsInsert sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError') ~> DimensionalTableOutputInsert",
+				"MarkAsUpdate sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     deletable:false,",
+				"     insertable:false,",
+				"     updateable:true,",
+				"     upsertable:false,",
+				"     keys:['Skey'],",
+				"     skipKeyWrites:true,",
+				"     format: 'table',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError') ~> DimensionalTableOutputUpdate"
+			]
+		}
+	}
+}

@@ -1,0 +1,48 @@
+{
+	"name": "ExplodeItemsWithUserId",
+	"properties": {
+		"folder": {
+			"name": "Flowlets"
+		},
+		"type": "Flowlet",
+		"typeProperties": {
+			"sources": [],
+			"sinks": [],
+			"transformations": [
+				{
+					"name": "FilterNonNullItems"
+				},
+				{
+					"name": "SplitItems"
+				},
+				{
+					"name": "FlattenItems"
+				},
+				{
+					"name": "ItemsInputStream"
+				},
+				{
+					"name": "ItemOutputStream"
+				}
+			],
+			"scriptLines": [
+				"input(output(",
+				"          Items as string,",
+				"          UserID as long",
+				"     ),",
+				"     order: 0,",
+				"     allowSchemaDrift: true) ~> ItemsInputStream",
+				"ItemsInputStream filter(!isNull(Items)) ~> FilterNonNullItems",
+				"FilterNonNullItems derive(ItemsArray = split(Items, '|')) ~> SplitItems",
+				"SplitItems foldDown(unroll(ItemsArray),",
+				"     mapColumn(",
+				"          Item = ItemsArray,",
+				"          UserID",
+				"     ),",
+				"     skipDuplicateMapInputs: false,",
+				"     skipDuplicateMapOutputs: false) ~> FlattenItems",
+				"FlattenItems output() ~> ItemOutputStream"
+			]
+		}
+	}
+}

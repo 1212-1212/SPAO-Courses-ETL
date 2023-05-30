@@ -1,0 +1,83 @@
+{
+	"name": "CourseYearETL",
+	"properties": {
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "InputSQL",
+						"type": "DatasetReference"
+					},
+					"name": "ExternalSource"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "OutputSQL",
+						"type": "DatasetReference"
+					},
+					"name": "DimCourseYear"
+				}
+			],
+			"transformations": [
+				{
+					"name": "Distinct",
+					"flowlet": {
+						"referenceName": "DistinctItem",
+						"type": "DataFlowReference"
+					}
+				},
+				{
+					"name": "SelectCourseYear"
+				},
+				{
+					"name": "CastToInt"
+				},
+				{
+					"name": "CastToString"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          CourseRawString as string,",
+				"          CourseName as string,",
+				"          CourseYear as integer,",
+				"          CourseType as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> ExternalSource",
+				"CastToString compose(mapColumn(",
+				"          Item = DimCourseYear",
+				"     ),",
+				"     composition: 'DistinctItem') ~> Distinct@(output)",
+				"ExternalSource select(mapColumn(",
+				"          DimCourseYear = CourseYear",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> SelectCourseYear",
+				"Distinct@output cast(output(",
+				"          Item as integer",
+				"     ),",
+				"     errors: true) ~> CastToInt",
+				"SelectCourseYear cast(output(",
+				"          DimCourseYear as string",
+				"     ),",
+				"     errors: true) ~> CastToString",
+				"CastToInt sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError') ~> DimCourseYear"
+			]
+		}
+	}
+}
